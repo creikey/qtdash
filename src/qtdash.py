@@ -1,28 +1,15 @@
 #!/usr/bin/env python
 
-from PySide2.QtCore import Qt
+from PySide2.QtCore import Qt, Signal, QObject, Slot
 from PySide2 import QtCore, QtWidgets, QtGui
 from networktables import NetworkTables
 import sys
 import logging
 import coloredlogs
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG')
-
 
 STYLESHEET_NAME = "stylesheet.qss"
 SERVER_URL = "127.0.0.1"
-
-values = {}
-
-initialized = NetworkTables.initialize(server=SERVER_URL)
-if not initialized:
-    logging.warn("NetworkTables failed to initialize")
-
-
-def entryListener(key, value, isNew, val_dict):  # isNew is if new entry
-    val_dict[key] = value
 
 
 def connectionListener(connected, info, indicator_widget):
@@ -36,22 +23,37 @@ def connectionListener(connected, info, indicator_widget):
     indicator_widget.style().polish(indicator_widget)
 
 
-class OnlineWidget(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
-        self.text = QtWidgets.QLabel("Connection Status")
-        self.conn_status = QtWidgets.QLabel("Disconnected")
-        self.conn_status.setProperty("connected", False)
-        self.text.setAlignment(Qt.AlignLeft)
-        self.conn_status.setAlignment(Qt.AlignRight)
-
-        self.layout = QtWidgets.QHBoxLayout()
-        self.layout.addWidget(self.text)
-        self.layout.addWidget(self.conn_status)
-        self.setLayout(self.layout)
+def entryListener(key, value, isNew, val_dict, widget_dict, layout, entrySignalHolder):
+    entrySignalHolder.entrySignal.emit(
+        str(key), str(value), isNew, val_dict, widget_dict, layout)
 
 
-if __name__ == "__main__":
+class EntrySignalHolder(QObject):
+    entrySignal = Signal((str, str, bool, dict, dict, QtWidgets.QGridLayout))
+
+
+@Slot(str, str, bool, dict, dict, QtWidgets.QGridLayout)
+def rearrange_gui(key, value, isNew, val_dict, widget_dict, layout):
+    val_dict[key] = value
+    if isNew:
+        widget_dict[key] = (QtWidgets.QPushButton(
+            key), QtWidgets.QLabel(value))
+        cur_row = len(widget_dict.keys())
+        layout.addWidget(widget_dict[key][0], cur_row, 0, 1, 1)
+        layout.addWidget(widget_dict[key][1], cur_row, 1, 1, 1)
+    else:
+        widget_dict[key][1].setText(value)
+
+
+def main():
+    values = {}
+    val_widgets = {}
+    NetworkTables.initialize(server=SERVER_URL)
+    logger = logging.getLogger(__name__)
+    coloredlogs.install(level='DEBUG')
+    entrySignalHolder = EntrySignalHolder()
+    entrySignalHolder.entrySignal.connect(rearrange_gui)
+
     try:
         with open(STYLESHEET_NAME, "r") as stylesheet:
             app = QtWidgets.QApplication(sys.argv)
@@ -59,15 +61,26 @@ if __name__ == "__main__":
     except FileNotFoundError:
         logging.warn("Could not find stylesheet {}".format(STYLESHEET_NAME))
     window = QtWidgets.QWidget()
-    layout = QtWidgets.QVBoxLayout()
+    layout = QtWidgets.QGridLayout()
 
-    online_widget = OnlineWidget()
+    stat_label = QtWidgets.QLabel("Connection Status")
+    stat_label.setAlignment(Qt.AlignLeft)
+    layout.addWidget(stat_label, 0, 0, 1, 1)
+
+    conn_status = QtWidgets.QLabel("Disconnected")
+    conn_status.setAlignment(Qt.AlignRight)
+    conn_status.setProperty("connected", False)
+    layout.addWidget(conn_status, 0, 1, 1, 1)
+
     NetworkTables.addConnectionListener(
-        lambda *args: connectionListener(*args, online_widget.conn_status), immediateNotify=True)
-    NetworkTables.addEntryListener(lambda *args: entryListener(*args, values))
-
-    layout.addWidget(online_widget)
+        lambda *args: connectionListener(*args, conn_status), immediateNotify=True)
+    NetworkTables.addEntryListener(
+        lambda *args: entryListener(*args, values, val_widgets, layout, entrySignalHolder))
 
     window.setLayout(layout)
     window.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
