@@ -1,0 +1,7 @@
+QLabel[connected=false] {
+    color: red;
+}
+
+QLabel[connected=true] {
+    color: green;
+}
