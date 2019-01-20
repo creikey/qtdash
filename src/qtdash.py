@@ -38,7 +38,7 @@ class EntrySignalHolder(QObject):
     @Slot(str, str, bool, QtWidgets.QGridLayout)
     def rearrange_gui(self, key, value, isNew, layout):
         if key not in self.widget_dict:
-            print("creating {}".format(key))
+            logging.debug("creating {}".format(key))
             self.widget_dict[key] = (QtWidgets.QPushButton(
                 key), QtWidgets.QLabel(value))
             self.widget_dict[key][1].setAlignment(Qt.AlignRight)
@@ -51,7 +51,6 @@ class EntrySignalHolder(QObject):
 
 def main():
     NetworkTables.initialize(server=SERVER_URL)
-    logger = logging.getLogger(__name__)
     coloredlogs.install(level='DEBUG')
     entrySignalHolder = EntrySignalHolder()
     entrySignalHolder.entrySignal.connect(entrySignalHolder.rearrange_gui)
@@ -70,25 +69,31 @@ def main():
     window_layout = QtWidgets.QVBoxLayout()
     window.setLayout(window_layout)
 
-    conn_status = QtWidgets.QWidget()
-    conn_status_layout = QtWidgets.QGridLayout()
-    conn_status.setLayout(conn_status_layout)
+    toolbox = QtWidgets.QWidget()
+    toolbox_layout = QtWidgets.QGridLayout()
+    toolbox.setLayout(toolbox_layout)
 
     vals = QtWidgets.QWidget()
     vals_layout = QtWidgets.QGridLayout()
     vals.setLayout(vals_layout)
 
-    window_layout.addWidget(conn_status)
+    window_layout.addWidget(toolbox)
     window_layout.addWidget(scrollArea)
 
     stat_label = QtWidgets.QLabel("Connection Status")
     stat_label.setAlignment(Qt.AlignLeft)
-    conn_status_layout.addWidget(stat_label, 0, 0, 1, 1)
+    toolbox_layout.addWidget(stat_label, 0, 0, 1, 1)
 
     conn_status = QtWidgets.QLabel("Disconnected")
     conn_status.setAlignment(Qt.AlignRight)
     conn_status.setProperty("connected", False)
-    conn_status_layout.addWidget(conn_status, 0, 1, 1, 1)
+    toolbox_layout.addWidget(conn_status, 0, 1, 1, 1)
+
+    key_input = QtWidgets.QLineEdit()
+    toolbox_layout.addWidget(key_input, 1, 0, 1, 1)
+
+    value_input = QtWidgets.QLineEdit()
+    toolbox_layout.addWidget(value_input, 1, 1, 1, 1)
 
     NetworkTables.addConnectionListener(
         lambda *args: connectionListener(*args, conn_status), immediateNotify=True)
