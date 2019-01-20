@@ -62,28 +62,42 @@ def main():
             app.setStyleSheet(stylesheet.read())
     except FileNotFoundError:
         logging.warn("Could not find stylesheet {}".format(STYLESHEET_NAME))
+
     scrollArea = QtWidgets.QScrollArea()
+
+    # window has to have multiple widgets
     window = QtWidgets.QWidget()
-    layout = QtWidgets.QGridLayout()
+    window_layout = QtWidgets.QVBoxLayout()
+    window.setLayout(window_layout)
+
+    conn_status = QtWidgets.QWidget()
+    conn_status_layout = QtWidgets.QGridLayout()
+    conn_status.setLayout(conn_status_layout)
+
+    vals = QtWidgets.QWidget()
+    vals_layout = QtWidgets.QGridLayout()
+    vals.setLayout(vals_layout)
+
+    window_layout.addWidget(conn_status)
+    window_layout.addWidget(scrollArea)
 
     stat_label = QtWidgets.QLabel("Connection Status")
     stat_label.setAlignment(Qt.AlignLeft)
-    layout.addWidget(stat_label, 0, 0, 1, 1)
+    conn_status_layout.addWidget(stat_label, 0, 0, 1, 1)
 
     conn_status = QtWidgets.QLabel("Disconnected")
     conn_status.setAlignment(Qt.AlignRight)
     conn_status.setProperty("connected", False)
-    layout.addWidget(conn_status, 0, 1, 1, 1)
+    conn_status_layout.addWidget(conn_status, 0, 1, 1, 1)
 
     NetworkTables.addConnectionListener(
         lambda *args: connectionListener(*args, conn_status), immediateNotify=True)
     NetworkTables.addEntryListener(
-        lambda *args: entryListener(*args, layout, entrySignalHolder))
+        lambda *args: entryListener(*args, vals_layout, entrySignalHolder))
 
-    window.setLayout(layout)
-    scrollArea.setWidget(window)
+    scrollArea.setWidget(vals)
     scrollArea.setWidgetResizable(True)
-    scrollArea.show()
+    window.show()
     sys.exit(app.exec_())
 
 
