@@ -23,24 +23,66 @@ def connectionListener(connected, info, indicator_widget):
     indicator_widget.style().polish(indicator_widget)
 
 
-def entryListener(key, value, isNew, layout, entrySignalHolder):
+def entryListener(key, value, isNew, layout, key_input, entrySignalHolder):
     entrySignalHolder.entrySignal.emit(
-        str(key), str(value), isNew, layout)
+        str(key), str(value), isNew, layout, key_input)
+
+
+class ValuePath(QtWidgets.QLineEdit):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    @Slot(str)
+    def change_cur_path(self, new_path):
+        #logging.debug("Setting path to {}".format(new_path))
+        self.setText(new_path)
+
+
+class DataEdit(QtWidgets.QLineEdit):
+    def __init__(self, val_path_widget, type_dropdown_widget):
+        super().__init__()
+        self.editingFinished.connect(self.send_data)
+        self.val_path_widget = val_path_widget
+        self.type_dropdown_widget = type_dropdown_widget
+
+    @Slot()
+    def send_data(self):
+        entry = NetworkTables.getEntry(self.val_path_widget.text())
+        send_method = getattr(
+            entry, self.type_dropdown_widget.currentText())
+        send_method(self.text())
+        #logging.debug(str(entry.__dict__))
+        #entry.putString(self.text())
+
+
+class ValuePathButton(QtWidgets.QPushButton):
+    setValPath = Signal((str))
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.pressed.connect(self.button_pushed)
+
+    @Slot()
+    def button_pushed(self):
+        #logging.debug("My text is {}".format(self.text()))
+        self.setValPath.emit(self.text())
 
 
 class EntrySignalHolder(QObject):
-    entrySignal = Signal((str, str, bool, QtWidgets.QGridLayout))
+    entrySignal = Signal((str, str, bool, QtWidgets.QGridLayout, ValuePath))
 
     def __init__(self):
         super().__init__()
         self.widget_dict = {}
 
-    @Slot(str, str, bool, QtWidgets.QGridLayout)
-    def rearrange_gui(self, key, value, isNew, layout):
+    @Slot(str, str, bool, QtWidgets.QGridLayout, ValuePath)
+    def rearrange_gui(self, key, value, isNew, layout, key_input):
         if key not in self.widget_dict:
-            logging.debug("creating {}".format(key))
-            self.widget_dict[key] = (QtWidgets.QPushButton(
+            #logging.debug("creating {}".format(key))
+            self.widget_dict[key] = (ValuePathButton(
                 key), QtWidgets.QLabel(value))
+            self.widget_dict[key][0].setValPath.connect(
+                key_input.change_cur_path)
             self.widget_dict[key][1].setAlignment(Qt.AlignRight)
             cur_row = len(self.widget_dict.keys())
             layout.addWidget(self.widget_dict[key][0], cur_row, 0, 1, 1)
@@ -51,6 +93,7 @@ class EntrySignalHolder(QObject):
 
 def main():
     NetworkTables.initialize(server=SERVER_URL)
+    smart_dash = NetworkTables.getTable("SmartDashboard")
     coloredlogs.install(level='DEBUG')
     entrySignalHolder = EntrySignalHolder()
     entrySignalHolder.entrySignal.connect(entrySignalHolder.rearrange_gui)
@@ -89,16 +132,22 @@ def main():
     conn_status.setProperty("connected", False)
     toolbox_layout.addWidget(conn_status, 0, 1, 1, 1)
 
-    key_input = QtWidgets.QLineEdit()
+    key_input = ValuePath()
     toolbox_layout.addWidget(key_input, 1, 0, 1, 1)
 
-    value_input = QtWidgets.QLineEdit()
-    toolbox_layout.addWidget(value_input, 1, 1, 1, 1)
+    type_dropdown = QtWidgets.QComboBox()
+    type_dropdown.addItem("setBoolean")  # TODO Add array and bytes support
+    type_dropdown.addItem("setNumber")
+    type_dropdown.addItem("setString")
+    toolbox_layout.addWidget(type_dropdown, 1, 1, 1, 1)
+
+    value_input = DataEdit(key_input, type_dropdown)
+    toolbox_layout.addWidget(value_input, 1, 2, 1, 1)
 
     NetworkTables.addConnectionListener(
         lambda *args: connectionListener(*args, conn_status), immediateNotify=True)
     NetworkTables.addEntryListener(
-        lambda *args: entryListener(*args, vals_layout, entrySignalHolder))
+        lambda *args: entryListener(*args, vals_layout, key_input, entrySignalHolder))
 
     scrollArea.setWidget(vals)
     scrollArea.setWidgetResizable(True)
