@@ -23,36 +23,38 @@ def connectionListener(connected, info, indicator_widget):
     indicator_widget.style().polish(indicator_widget)
 
 
-def entryListener(key, value, isNew, val_dict, widget_dict, layout, entrySignalHolder):
+def entryListener(key, value, isNew, layout, entrySignalHolder):
     entrySignalHolder.entrySignal.emit(
-        str(key), str(value), isNew, val_dict, widget_dict, layout)
+        str(key), str(value), isNew, layout)
 
 
 class EntrySignalHolder(QObject):
-    entrySignal = Signal((str, str, bool, dict, dict, QtWidgets.QGridLayout))
+    entrySignal = Signal((str, str, bool, QtWidgets.QGridLayout))
 
+    def __init__(self):
+        super().__init__()
+        self.widget_dict = {}
 
-@Slot(str, str, bool, dict, dict, QtWidgets.QGridLayout)
-def rearrange_gui(key, value, isNew, val_dict, widget_dict, layout):
-    val_dict[key] = value
-    if isNew:
-        widget_dict[key] = (QtWidgets.QPushButton(
-            key), QtWidgets.QLabel(value))
-        cur_row = len(widget_dict.keys())
-        layout.addWidget(widget_dict[key][0], cur_row, 0, 1, 1)
-        layout.addWidget(widget_dict[key][1], cur_row, 1, 1, 1)
-    else:
-        widget_dict[key][1].setText(value)
+    @Slot(str, str, bool, QtWidgets.QGridLayout)
+    def rearrange_gui(self, key, value, isNew, layout):
+        if key not in self.widget_dict:
+            print("creating {}".format(key))
+            self.widget_dict[key] = (QtWidgets.QPushButton(
+                key), QtWidgets.QLabel(value))
+            self.widget_dict[key][1].setAlignment(Qt.AlignRight)
+            cur_row = len(self.widget_dict.keys())
+            layout.addWidget(self.widget_dict[key][0], cur_row, 0, 1, 1)
+            layout.addWidget(self.widget_dict[key][1], cur_row, 1, 1, 1)
+        else:
+            self.widget_dict[key][1].setText(value)
 
 
 def main():
-    values = {}
-    val_widgets = {}
     NetworkTables.initialize(server=SERVER_URL)
     logger = logging.getLogger(__name__)
     coloredlogs.install(level='DEBUG')
     entrySignalHolder = EntrySignalHolder()
-    entrySignalHolder.entrySignal.connect(rearrange_gui)
+    entrySignalHolder.entrySignal.connect(entrySignalHolder.rearrange_gui)
 
     try:
         with open(STYLESHEET_NAME, "r") as stylesheet:
@@ -60,6 +62,7 @@ def main():
             app.setStyleSheet(stylesheet.read())
     except FileNotFoundError:
         logging.warn("Could not find stylesheet {}".format(STYLESHEET_NAME))
+    scrollArea = QtWidgets.QScrollArea()
     window = QtWidgets.QWidget()
     layout = QtWidgets.QGridLayout()
 
@@ -75,10 +78,12 @@ def main():
     NetworkTables.addConnectionListener(
         lambda *args: connectionListener(*args, conn_status), immediateNotify=True)
     NetworkTables.addEntryListener(
-        lambda *args: entryListener(*args, values, val_widgets, layout, entrySignalHolder))
+        lambda *args: entryListener(*args, layout, entrySignalHolder))
 
     window.setLayout(layout)
-    window.show()
+    scrollArea.setWidget(window)
+    scrollArea.setWidgetResizable(True)
+    scrollArea.show()
     sys.exit(app.exec_())
 
 
