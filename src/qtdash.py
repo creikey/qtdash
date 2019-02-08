@@ -6,10 +6,12 @@ from networktables import NetworkTables
 import sys
 import logging
 import coloredlogs
+import re
 
 
 STYLESHEET_NAME = "stylesheet.qss"
-SERVER_URL = "127.0.0.1"
+SERVER_URL = "10.29.84.2"
+cur_regex_matcher = re.compile(".*")
 
 
 def connectionListener(connected, info, indicator_widget):
@@ -24,8 +26,9 @@ def connectionListener(connected, info, indicator_widget):
 
 
 def entryListener(key, value, isNew, layout, key_input, entrySignalHolder):
-    entrySignalHolder.entrySignal.emit(
-        str(key), str(value), isNew, layout, key_input)
+    if cur_regex_matcher.match(key):
+        entrySignalHolder.entrySignal.emit(
+            str(key), str(value), isNew, layout, key_input)
 
 
 class ValuePath(QtWidgets.QLineEdit):
@@ -36,6 +39,19 @@ class ValuePath(QtWidgets.QLineEdit):
     def change_cur_path(self, new_path):
         #logging.debug("Setting path to {}".format(new_path))
         self.setText(new_path)
+
+class RegexEdit(QtWidgets.QLineEdit):
+    filterEntries = Signal(())
+    def __init__(self):
+        super().__init__()
+        self.editingFinished.connect(self.filter_entries)
+
+    @Slot()
+    def filter_entries(self):
+        global cur_regex_matcher
+        logging.debug("setting regex matcher. before: {}".format(cur_regex_matcher))
+        cur_regex_matcher = re.compile(self.text())
+        self.filterEntries.emit()
 
 
 class DataEdit(QtWidgets.QLineEdit):
@@ -74,6 +90,18 @@ class EntrySignalHolder(QObject):
     def __init__(self):
         super().__init__()
         self.widget_dict = {}
+
+    @Slot()
+    def filter_entries(self):
+        global cur_regex_matcher
+        logging.debug("Filtering entries with {}".format(cur_regex_matcher))
+        for key in list(self.widget_dict.keys()):
+            #logging.debug("KEY D OGer    : {}".format(key))
+            if not cur_regex_matcher.match(key):
+                logging.info("filtering {}".format(key))
+                self.widget_dict[key][0].deleteLater()
+                self.widget_dict[key][1].deleteLater()
+                del self.widget_dict[key]
 
     @Slot(str, str, bool, QtWidgets.QGridLayout, ValuePath)
     def rearrange_gui(self, key, value, isNew, layout, key_input):
@@ -143,6 +171,10 @@ def main():
 
     value_input = DataEdit(key_input, type_dropdown)
     toolbox_layout.addWidget(value_input, 1, 2, 1, 1)
+
+    regex_edit = RegexEdit()
+    regex_edit.filterEntries.connect(entrySignalHolder.filter_entries)
+    toolbox_layout.addWidget(regex_edit, 2, 0, 1, 3)
 
     NetworkTables.addConnectionListener(
         lambda *args: connectionListener(*args, conn_status), immediateNotify=True)
