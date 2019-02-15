@@ -8,10 +8,12 @@ import logging
 import coloredlogs
 import re
 
-
+if len(sys.argv) < 2:
+    SERVER_URL = "127.0.0.1"
+else:
+    SERVER_URL = sys.argv[1]
 STYLESHEET_NAME = "stylesheet.qss"
-#SERVER_URL = "10.29.84.2"
-SERVER_URL = "127.0.0.1"
+
 cur_regex_matcher = re.compile(".*")
 
 
