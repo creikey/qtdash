@@ -10,7 +10,8 @@ import re
 
 
 STYLESHEET_NAME = "stylesheet.qss"
-SERVER_URL = "10.29.84.2"
+#SERVER_URL = "10.29.84.2"
+SERVER_URL = "127.0.0.1"
 cur_regex_matcher = re.compile(".*")
 
 
@@ -26,7 +27,6 @@ def connectionListener(connected, info, indicator_widget):
 
 
 def entryListener(key, value, isNew, layout, key_input, entrySignalHolder):
-    if cur_regex_matcher.match(key):
         entrySignalHolder.entrySignal.emit(
             str(key), str(value), isNew, layout, key_input)
 
@@ -50,7 +50,7 @@ class RegexEdit(QtWidgets.QLineEdit):
     def filter_entries(self):
         global cur_regex_matcher
         logging.debug("setting regex matcher. before: {}".format(cur_regex_matcher))
-        cur_regex_matcher = re.compile(self.text())
+        cur_regex_matcher = re.compile(self.text(), flags=re.IGNORECASE)
         self.filterEntries.emit()
 
 
@@ -97,11 +97,13 @@ class EntrySignalHolder(QObject):
         logging.debug("Filtering entries with {}".format(cur_regex_matcher))
         for key in list(self.widget_dict.keys()):
             #logging.debug("KEY D OGer    : {}".format(key))
-            if not cur_regex_matcher.match(key):
+            if not cur_regex_matcher.search(key):
                 logging.info("filtering {}".format(key))
-                self.widget_dict[key][0].deleteLater()
-                self.widget_dict[key][1].deleteLater()
-                del self.widget_dict[key]
+                self.widget_dict[key][0].hide()
+                self.widget_dict[key][1].hide()
+            else:
+                self.widget_dict[key][0].show()
+                self.widget_dict[key][1].show()
 
     @Slot(str, str, bool, QtWidgets.QGridLayout, ValuePath)
     def rearrange_gui(self, key, value, isNew, layout, key_input):
